@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::fmt;
 use std::rc::Rc;
 
 use boolinator::Boolinator;
@@ -16,6 +17,15 @@ struct Info<'src> {
 enum Type {
     Bool,
     Arr(Rc<Type>, Rc<Type>),
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::Bool => write!(f, "Bool"),
+            Type::Arr(from, to) => write!(f, "({} -> {})", from, to),
+        }
+    }
 }
 
 impl PartialEq for Type {
@@ -48,6 +58,17 @@ impl<'src> Pat<'src> {
             (Pat::True(_), Type::Bool) => true,
             (Pat::False(_), Type::Bool) => true,
             _ => false,
+        }
+    }
+}
+
+impl<'src> fmt::Display for Pat<'src> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Pat::Any(_) => write!(f, "_"),
+            Pat::Id(_, id) => write!(f, "{}", id),
+            Pat::True(_) => write!(f, "true"),
+            Pat::False(_) => write!(f, "false"),
         }
     }
 }
@@ -172,10 +193,40 @@ impl<'src> Term<'src> {
     }
 }
 
+impl<'src> fmt::Display for Term<'src> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Term::*;
+        match self {
+            Apply(_, t1, t2) => write!(f, "({} {})", t1, t2),
+            Match(_, term, pats) => {
+                write!(f, "match {} with {} => {}", term, pats[0].0, pats[0].1)?;
+                for (pat, term) in &pats[1..] {
+                    write!(f, " | {} => {}", pat, term)?;
+                }
+                write!(f, " end")
+            }
+            Id(_, id) => write!(f, "{}", id),
+            Lambda(_, param, ty, term) => write!(f, "fn {}: {} => {}", param, ty, term),
+            Let(_, pat, ty, let_term, in_term) => write!(f, "let {}: {} = {} in {}", pat, ty, let_term, in_term),
+            True(_) => write!(f, "true"),
+            False(_) => write!(f, "false"),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Value<'src> {
     Bool(bool),
     Lambda(VScope<'src>, Rc<Pat<'src>>, Rc<Term<'src>>),
+}
+
+impl<'src> fmt::Display for Value<'src> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Bool(bool) => write!(f, "{}", bool),
+            Value::Lambda(_, pat, term) => write!(f, "fn {} => {}", pat, term),
+        }
+    }
 }
 
 fn eval<'a>(scope: VScope<'a>, t: &Term<'a>) -> Rc<Value<'a>> {
@@ -272,10 +323,7 @@ fn main() {
         )),
     );
     let not_type = not_term.type_check(hashmap![]).unwrap();
+    let not_value = eval(hashmap![], &not_term);
 
-    println!(
-        "(let not = \\x => (match x with true => false | false => true) in not true) : {:?} => {:?}",
-        not_type,
-        eval(hashmap![], &not_term),
-    );
+    println!("({}): {} ==> {}", not_term, not_type, not_value);
 }
