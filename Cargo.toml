@@ -5,4 +5,5 @@ authors = ["Adam Vandolder <adam.vandolder@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+boolinator = "2"
 im-rc = "15"
