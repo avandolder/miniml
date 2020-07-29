@@ -52,7 +52,7 @@ impl<'src> Term<'src> {
             }
             Let(info, pat, ty, _, in_term) => {
                 let scope = pat
-                    .case_types(scope, ty.clone())
+                    .match_type(scope, ty.clone())
                     .unwrap_or_else(|| panic!("pattern doesn't match type at {:?}", info));
                 in_term.type_of(scope)
             }
@@ -108,7 +108,7 @@ impl<'src> Term<'src> {
                 .cloned()
                 .ok_or_else(|| format!("id '{}' unknown at {:?}", id, info)),
             Lambda(info, param, ty, term) => {
-                let scope = param.case_types(scope, ty.clone()).ok_or_else(|| {
+                let scope = param.match_type(scope, ty.clone()).ok_or_else(|| {
                     format!(
                         "unable to match pattern {:?} with type {:?} at {:?}",
                         param, ty, info
@@ -128,7 +128,7 @@ impl<'src> Term<'src> {
                     ));
                 }
                 let scope = pat
-                    .case_types(scope, ty.clone())
+                    .match_type(scope, ty.clone())
                     .ok_or_else(|| format!("pattern doesn't match type at {:?}", info))?;
                 in_term.type_check(scope)
             }
@@ -153,7 +153,7 @@ impl<'src> fmt::Display for Term<'src> {
             Id(_, id) => write!(f, "{}", id),
             Lambda(_, param, ty, term) => write!(f, "fn {}: {} => {}", param, ty, term),
             Let(_, pat, ty, let_term, in_term) => {
-                write!(f, "let {}: {} = {} in {}", pat, ty, let_term, in_term)
+                write!(f, "let {}: {} = {} in\n{}", pat, ty, let_term, in_term)
             }
             True(_) => write!(f, "true"),
             False(_) => write!(f, "false"),

@@ -69,7 +69,7 @@ fn parse_apply<'a>(
     let span = pair.as_span();
     let next = parse_term(pair);
 
-    if let Some(_) = pairs.peek() {
+    if pairs.peek().is_some() {
         parse_apply(pairs, Term::Apply(span, Rc::new(lhs), Rc::new(next)))
     } else {
         Term::Apply(span, Rc::new(lhs), Rc::new(next))

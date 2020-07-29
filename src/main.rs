@@ -29,7 +29,7 @@ fn eval<'a>(scope: VScope<'a>, t: &Term<'a>) -> Rc<Value<'a>> {
             let value = eval(scope.clone(), term);
             pats.iter()
                 .filter_map(|(pat, term)| {
-                    pat.case(scope.clone(), value.clone()).map(|scope| eval(scope, term))
+                    pat.match_value(scope.clone(), value.clone()).map(|scope| eval(scope, term))
                 })
                 .next()
                 .unwrap_or_else(|| panic!("no match at {:?}", info))
@@ -41,7 +41,7 @@ fn eval<'a>(scope: VScope<'a>, t: &Term<'a>) -> Rc<Value<'a>> {
         Lambda(_info, param, _, term) => Rc::new(Value::Lambda(scope, param.clone(), term.clone())),
         Let(_info, pat, _, let_term, in_term) => {
             let let_value = eval(scope.clone(), &let_term);
-            eval(pat.case(scope, let_value).unwrap(), &in_term)
+            eval(pat.match_value(scope, let_value).unwrap(), &in_term)
         }
         True(_) => Rc::new(Value::Bool(true)),
         False(_) => Rc::new(Value::Bool(false)),
@@ -51,7 +51,7 @@ fn eval<'a>(scope: VScope<'a>, t: &Term<'a>) -> Rc<Value<'a>> {
 fn apply<'a>(info: &Span<'a>, fun: Rc<Value<'a>>, arg: Rc<Value<'a>>) -> Rc<Value<'a>> {
     match fun.borrow() {
         Value::Lambda(scope, param, term) => {
-            eval(param.case(scope.clone(), arg).unwrap(), &term)
+            eval(param.match_value(scope.clone(), arg).unwrap(), &term)
         }
         v => panic!("unable to apply to value {:?} at {:?}", v, info),
     }
@@ -63,8 +63,8 @@ let dup: (Bool -> Bool) -> Bool -> Bool =
   fn f: Bool -> Bool => fn b: Bool => f (f b) in
 let not: Bool -> Bool = fn b: Bool =>
   match b with
-    true => false
-  | false => true in
+    | true => false
+    | false => true in
 dup not true
 "#;
     let term = parse(src);

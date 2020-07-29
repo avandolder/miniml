@@ -29,7 +29,7 @@ impl<'src> Pattern<'src> {
         }
     }
 
-    pub(crate) fn case(&self, scope: VScope<'src>, value: Rc<Value<'src>>) -> Option<VScope<'src>> {
+    pub(crate) fn match_value(&self, scope: VScope<'src>, value: Rc<Value<'src>>) -> Option<VScope<'src>> {
         match (self, value.as_ref()) {
             (Pattern::Any(_), _) => Some(scope),
             (Pattern::Id(_, id), _) => Some(scope.update(id, value)),
@@ -39,7 +39,7 @@ impl<'src> Pattern<'src> {
         }
     }
 
-    pub(crate) fn case_types(&self, scope: TScope<'src>, ty: Rc<Type>) -> Option<TScope<'src>> {
+    pub(crate) fn match_type(&self, scope: TScope<'src>, ty: Rc<Type>) -> Option<TScope<'src>> {
         match (self, ty.as_ref()) {
             (Pattern::Any(_), _) => Some(scope),
             (Pattern::Id(_, id), _) => Some(scope.update(id, ty)),

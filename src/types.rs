@@ -20,7 +20,7 @@ impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Type::Bool, Type::Bool) => true,
-            (Type::Arr(l1, l2), Type::Arr(r1, r2)) => (&l1 == &r1) && (&l2 == &r2),
+            (Type::Arr(l1, l2), Type::Arr(r1, r2)) => (l1 == r1) && (l2 == r2),
             _ => false,
         }
     }
