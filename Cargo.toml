@@ -7,3 +7,5 @@ edition = "2018"
 [dependencies]
 boolinator = "2"
 im-rc = "15"
+pest = "2"
+pest_derive = "2"
