@@ -29,7 +29,11 @@ impl<'src> Pattern<'src> {
         }
     }
 
-    pub(crate) fn match_value(&self, scope: VScope<'src>, value: Rc<Value<'src>>) -> Option<VScope<'src>> {
+    pub(crate) fn match_value(
+        &self,
+        scope: VScope<'src>,
+        value: Rc<Value<'src>>,
+    ) -> Option<VScope<'src>> {
         match (self, value.as_ref()) {
             (Pattern::Any(_), _) => Some(scope),
             (Pattern::Id(_, id), _) => Some(scope.update(id, value)),

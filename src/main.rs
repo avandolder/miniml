@@ -29,7 +29,8 @@ fn eval<'a>(scope: VScope<'a>, t: &Term<'a>) -> Rc<Value<'a>> {
             let value = eval(scope.clone(), term);
             pats.iter()
                 .filter_map(|(pat, term)| {
-                    pat.match_value(scope.clone(), value.clone()).map(|scope| eval(scope, term))
+                    pat.match_value(scope.clone(), value.clone())
+                        .map(|scope| eval(scope, term))
                 })
                 .next()
                 .unwrap_or_else(|| panic!("no match at {:?}", info))
@@ -59,14 +60,14 @@ fn apply<'a>(info: &Span<'a>, fun: Rc<Value<'a>>, arg: Rc<Value<'a>>) -> Rc<Valu
 
 fn main() {
     let src = r#"
-let dup: (Bool -> Bool) -> Bool -> Bool =
-  fn f: Bool -> Bool => fn b: Bool => f (f b) in
-let not: Bool -> Bool = fn b: Bool =>
-  match b with
-    | true => false
-    | false => true in
-dup not true
-"#;
+        let twice: (Bool -> Bool) -> Bool -> Bool =
+          fn f: Bool -> Bool => (fn b: Bool => f (f b)) in
+        let not: Bool -> Bool = fn b: Bool =>
+        match b with
+          | true => false
+          | false => true in
+        twice not true
+    "#;
     let term = parse(src);
     let ty = term.type_check(hashmap![]).expect("type check failed");
     let val = eval(hashmap![], &term);
@@ -82,12 +83,12 @@ mod test {
     #[test]
     fn parser_test() {
         let src = r#"
-let not: (Bool -> Bool) = fn b: Bool =>
-  match b with
-    true => false
-  | false => true in
-not true
-"#;
+            let not: (Bool -> Bool) = fn b: Bool =>
+            match b with
+                true => false
+            | false => true in
+            not true
+        "#;
         let term1 = parse(src);
 
         let dummy_info = || pest::Span::new("", 0, 0).unwrap();

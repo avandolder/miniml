@@ -28,20 +28,28 @@ fn parse_term(pair: Pair<Rule>) -> Term {
             let ty = parse_type(pairs.next().unwrap());
             let let_term = parse_term(pairs.next().unwrap());
             let in_term = parse_term(pairs.next().unwrap());
-            Term::Let(span, Rc::new(pat), Rc::new(ty), Rc::new(let_term), Rc::new(in_term))
+            Term::Let(
+                span,
+                Rc::new(pat),
+                Rc::new(ty),
+                Rc::new(let_term),
+                Rc::new(in_term),
+            )
         }
         Rule::Match => {
             let span = pair.as_span();
             let mut pairs = pair.into_inner();
             let matched = parse_term(pairs.next().unwrap());
 
-            let arms = pairs.map(|arm| {
-                let mut pairs = arm.into_inner();
-                (
-                    Rc::new(parse_pattern(pairs.next().unwrap())),
-                    Rc::new(parse_term(pairs.next().unwrap())),
-                )
-            }).collect::<Vec<_>>();
+            let arms = pairs
+                .map(|arm| {
+                    let mut pairs = arm.into_inner();
+                    (
+                        Rc::new(parse_pattern(pairs.next().unwrap())),
+                        Rc::new(parse_term(pairs.next().unwrap())),
+                    )
+                })
+                .collect::<Vec<_>>();
 
             Term::Match(span, Rc::new(matched), arms)
         }
@@ -102,11 +110,13 @@ fn parse_type(pair: Pair<Rule>) -> Type {
 }
 
 pub(crate) fn parse(src: &str) -> Term {
-    parse_term(TermParser::parse(Rule::Program, src)
-        .expect("parse failed")
-        .next()
-        .unwrap()
-        .into_inner()
-        .next()
-        .unwrap())
+    parse_term(
+        TermParser::parse(Rule::Program, src)
+            .expect("parse failed")
+            .next()
+            .unwrap()
+            .into_inner()
+            .next()
+            .unwrap(),
+    )
 }
