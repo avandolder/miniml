@@ -2,16 +2,16 @@ WHITESPACE = _{ " " | "\t" | NEWLINE }
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY) ~ NEWLINE }
 
 Program = { SOI ~ Term ~ EOI }
-Term = { Apply | ValTerm | "(" ~ Term ~ ")" }
+Term = { Apply | ValTerm }
 Apply = { ("(" ~ Term ~ ")" | Id) ~ ValTerm+ }
-ValTerm = _{ Let | Match | Lambda | True | False | Id | "(" ~ ValTerm ~ ")"}
+ValTerm = _{ Let | Match | Lambda | True | False | Id | "(" ~ Term ~ ")"}
 Lambda = { "fn" ~ Pattern ~ ":" ~ Type ~ "=>" ~ Term }
 Let = { "let" ~ Pattern ~ ":" ~ Type ~ "=" ~ Term ~ "in" ~ Term }
 
 Type = { Arrow | Bool | "(" ~ Type ~ ")" }
 Arrow = { ("(" ~ Type ~ ")" | Bool) ~ "->" ~ Type }
 
-Match = { "match" ~ Term ~ "with" ~ "|"? ~ Arm ~ ("|" ~ Arm)* ~ "end" }
+Match = { "match" ~ Term ~ "with" ~ "|"? ~ Arm ~ ("|" ~ Arm)* }
 Arm = { Pattern ~ "=>" ~ Term }
 Pattern = { Any | True | False | Id }
 

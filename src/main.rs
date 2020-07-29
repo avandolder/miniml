@@ -58,8 +58,17 @@ fn apply<'a>(info: &Span<'a>, fun: Rc<Value<'a>>, arg: Rc<Value<'a>>) -> Rc<Valu
 }
 
 fn main() {
-    let term = parse("");
-    let ty = term.type_check(hashmap![]).unwrap();
+    let src = r#"
+let dup: (Bool -> Bool) -> Bool -> Bool =
+  fn f: Bool -> Bool => fn b: Bool => f (f b) in
+let not: Bool -> Bool = fn b: Bool =>
+  match b with
+    true => false
+  | false => true in
+dup not true
+"#;
+    let term = parse(src);
+    let ty = term.type_check(hashmap![]).expect("type check failed");
     let val = eval(hashmap![], &term);
     println!("{}\n\n==> {} : {}", term, val, ty);
 }
@@ -72,12 +81,12 @@ mod test {
 
     #[test]
     fn parser_test() {
-        let src = r#"let not: (Bool -> Bool) = fn b: Bool =>
+        let src = r#"
+let not: (Bool -> Bool) = fn b: Bool =>
   match b with
     true => false
-  | false => true
-  end
-in not true
+  | false => true in
+not true
 "#;
         let term1 = parse(src);
 

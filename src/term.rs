@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::fmt;
 use std::rc::Rc;
 
@@ -65,12 +64,19 @@ impl<'src> Term<'src> {
     pub(crate) fn type_check(&self, scope: TScope<'src>) -> Result<Rc<Type>, String> {
         use Term::*;
         match self {
-            Apply(info, t1, t2) => match t1.type_check(scope.clone())?.as_ref() {
-                Type::Arr(in_type, out_type) => (in_type.as_ref()
-                    == t2.type_check(scope)?.borrow())
-                .as_result(out_type.clone(), String::new()),
-                _ => Err(format!("can't apply to a non-function at {:?}", info)),
-            },
+            Apply(info, t1, t2) => {
+                let ty1 = t1.type_check(scope.clone())?;
+                match ty1.as_ref() {
+                    Type::Arr(in_type, out_type) => {
+                        let ty2 = t2.type_check(scope)?;
+                        (in_type.as_ref() == ty2.as_ref()).as_result_from(
+                            || out_type.clone(),
+                            || format!("can't apply {} to {} at {:?}", ty2, in_type, info),
+                        )
+                    }
+                    _ => Err(format!("can't apply to a non-function at {:?}", info)),
+                }
+            }
             Match(info, term, pats) => {
                 let term_type = term.type_check(scope.clone())?;
 
