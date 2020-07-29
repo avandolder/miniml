@@ -4,14 +4,14 @@ use std::rc::Rc;
 use im_rc::{self, hashmap};
 use pest::Span;
 
+mod parser;
 mod pattern;
 mod term;
 mod types;
 mod value;
 
-use pattern::Pattern;
+use parser::parse;
 use term::Term;
-use types::Type;
 use value::Value;
 
 type Scope<'src, T> = im_rc::HashMap<&'src str, Rc<T>>;
@@ -58,35 +58,56 @@ fn apply<'a>(info: &Span<'a>, fun: Rc<Value<'a>>, arg: Rc<Value<'a>>) -> Rc<Valu
 }
 
 fn main() {
-    let dummy_info = || pest::Span::new("", 0, 0).unwrap();
+    let term = parse("");
+    let ty = term.type_check(hashmap![]).unwrap();
+    let val = eval(hashmap![], &term);
+    println!("{}\n\n==> {} : {}", term, val, ty);
+}
 
-    let tfalse = Rc::new(Term::False(dummy_info()));
-    let ttrue = Rc::new(Term::True(dummy_info()));
-    let not_term = Term::Let(
-        dummy_info(),
-        Rc::new(Pattern::Id(dummy_info(), "not")),
-        Rc::new(Type::Arr(Rc::new(Type::Bool), Rc::new(Type::Bool))),
-        Rc::new(Term::Lambda(
+#[cfg(test)]
+mod test {
+    use super::*;
+    use pattern::Pattern;
+    use types::Type;
+
+    #[test]
+    fn parser_test() {
+        let src = r#"let not: (Bool -> Bool) = fn b: Bool =>
+  match b with
+    true => false
+  | false => true
+  end
+in not true
+"#;
+        let term1 = parse(src);
+
+        let dummy_info = || pest::Span::new("", 0, 0).unwrap();
+        let tfalse = Rc::new(Term::False(dummy_info()));
+        let ttrue = Rc::new(Term::True(dummy_info()));
+        let term2 = Term::Let(
             dummy_info(),
-            Rc::new(Pattern::Id(dummy_info(), "b")),
-            Rc::new(Type::Bool),
-            Rc::new(Term::Match(
+            Rc::new(Pattern::Id(dummy_info(), "not")),
+            Rc::new(Type::Arr(Rc::new(Type::Bool), Rc::new(Type::Bool))),
+            Rc::new(Term::Lambda(
                 dummy_info(),
-                Rc::new(Term::Id(dummy_info(), "b")),
-                vec![
-                    (Rc::new(Pattern::True(dummy_info())), tfalse.clone()),
-                    (Rc::new(Pattern::False(dummy_info())), ttrue.clone()),
-                ],
+                Rc::new(Pattern::Id(dummy_info(), "b")),
+                Rc::new(Type::Bool),
+                Rc::new(Term::Match(
+                    dummy_info(),
+                    Rc::new(Term::Id(dummy_info(), "b")),
+                    vec![
+                        (Rc::new(Pattern::True(dummy_info())), tfalse.clone()),
+                        (Rc::new(Pattern::False(dummy_info())), ttrue.clone()),
+                    ],
+                )),
             )),
-        )),
-        Rc::new(Term::Apply(
-            dummy_info(),
-            Rc::new(Term::Id(dummy_info(), "not")),
-            ttrue.clone(),
-        )),
-    );
-    let not_type = not_term.type_check(hashmap![]).unwrap();
-    let not_value = eval(hashmap![], &not_term);
+            Rc::new(Term::Apply(
+                dummy_info(),
+                Rc::new(Term::Id(dummy_info(), "not")),
+                ttrue.clone(),
+            )),
+        );
 
-    println!("({}): {} ==> {}", not_term, not_type, not_value);
+        assert_eq!(term1.to_string(), term2.to_string());
+    }
 }
