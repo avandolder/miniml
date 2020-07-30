@@ -49,6 +49,7 @@ fn eval<'a>(scope: VScope<'a>, t: &Term<'a>) -> Rc<Value<'a>> {
         Tuple(_info, terms) => Rc::new(Value::Tuple(
             terms.iter().map(|term| eval(scope.clone(), term)).collect(),
         )),
+        Int(_, int) => Rc::new(Value::Int(*int)),
     }
 }
 
@@ -63,24 +64,11 @@ fn apply<'a>(info: &Span<'a>, fun: Rc<Value<'a>>, arg: Rc<Value<'a>>) -> Rc<Valu
 
 fn main() {
     let src = r#"
-        let twice: (Bool -> Bool) -> Bool -> Bool =
-          fn f: Bool -> Bool => (fn b: Bool => f (f b)) in
-        let not: Bool -> Bool = fn b: Bool =>
+        let not: (Bool -> Bool) = fn b: Bool =>
           match b with
             | true => false
-            | false => true
-        in
-        let and: Bool -> Bool -> Bool = fn x: Bool => fn y: Bool =>
-          match (x, y) with
-            | (true, true) => true
-            | _ => false
-        in
-        let or: Bool -> Bool -> Bool = fn x: Bool => fn y: Bool =>
-          match (x, y) with
-            | (true, _) => true
-            | (false, z) => z
-        in
-        and (twice not true) (or false true)
+            | false => true in
+        if not true then 0 else 10
     "#;
     let term = parse(src);
     let ty = term.type_check(hashmap![]).expect("type check failed");

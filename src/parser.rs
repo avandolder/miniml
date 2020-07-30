@@ -53,9 +53,21 @@ fn parse_term(pair: Pair<Rule>) -> Term {
 
             Term::Match(span, Rc::new(matched), arms)
         }
+        Rule::If => {
+            let span = pair.as_span();
+            let mut pairs = pair.into_inner();
+            let tcond = parse_term(pairs.next().unwrap());
+            let tthen = parse_term(pairs.next().unwrap());
+            let telse = parse_term(pairs.next().unwrap());
+            Term::Match(span.clone(), Rc::new(tcond), vec![
+                (Rc::new(Pattern::True(span.clone())), Rc::new(tthen)),
+                (Rc::new(Pattern::False(span.clone())), Rc::new(telse)),
+            ])
+        }
         Rule::Id => Term::Id(pair.as_span(), pair.as_str()),
         Rule::True => Term::True(pair.as_span()),
         Rule::False => Term::False(pair.as_span()),
+        Rule::Int => Term::Int(pair.as_span(), pair.as_str().parse().unwrap()),
         Rule::Tuple => Term::Tuple(
             pair.as_span(),
             pair.into_inner()
@@ -110,7 +122,7 @@ fn parse_pattern(pair: Pair<Rule>) -> Pattern {
 fn parse_type(pair: Pair<Rule>) -> Type {
     match pair.as_rule() {
         Rule::Type => parse_type(pair.into_inner().next().unwrap()),
-        Rule::Bool => Type::Bool,
+        Rule::BoolType => Type::Bool,
         Rule::Arrow => {
             let mut pairs = pair.into_inner();
             let lhs = parse_type(pairs.next().unwrap());

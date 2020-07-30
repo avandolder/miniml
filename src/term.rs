@@ -29,6 +29,7 @@ pub(crate) enum Term<'src> {
     True(Span<'src>),
     False(Span<'src>),
     Tuple(Span<'src>, Vec<Rc<Term<'src>>>),
+    Int(Span<'src>, i64),
 }
 
 impl<'src> Term<'src> {
@@ -65,6 +66,7 @@ impl<'src> Term<'src> {
                     .map(|term| term.type_of(scope.clone()))
                     .collect(),
             )),
+            Int(_, _) => Rc::new(Type::Int),
         }
     }
 
@@ -88,15 +90,15 @@ impl<'src> Term<'src> {
                 let term_type = term.type_check(scope.clone())?;
 
                 let (pat, result) = &pats[0];
-                let result_type;
-                if let Some(scope) = pat.match_type(scope.clone(), term_type.clone()) {
-                    result_type = result.type_check(scope)?;
-                } else {
-                    return Err(format!(
-                        "pattern {:?} can't match type {:?} at {:?}",
-                        pat, term_type, info
-                    ));
-                }
+                let result_type =
+                    if let Some(scope) = pat.match_type(scope.clone(), term_type.clone()) {
+                        result.type_check(scope)?
+                    } else {
+                        return Err(format!(
+                            "pattern {:?} can't match type {:?} at {:?}",
+                            pat, term_type, info
+                        ));
+                    };
 
                 for (next_pat, next_result) in &pats[1..] {
                     if let Some(scope) = next_pat.match_type(scope.clone(), term_type.clone()) {
@@ -150,6 +152,7 @@ impl<'src> Term<'src> {
                     .map(|term| term.type_check(scope.clone()))
                     .collect::<Result<Vec<_>, _>>()?,
             ))),
+            Int(_, _) => Ok(Rc::new(Type::Int)),
         }
     }
 }
@@ -183,7 +186,8 @@ impl<'src> fmt::Display for Term<'src> {
                     }
                     write!(f, "{})", terms.last().unwrap())
                 }
-            },
+            }
+            Int(_, int) => write!(f, "{}", int),
         }
     }
 }

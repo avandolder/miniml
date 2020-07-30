@@ -16,6 +16,7 @@ pub(crate) enum Pattern<'src> {
     Id(Span<'src>, &'src str),
     True(Span<'src>),
     False(Span<'src>),
+    Int(Span<'src>, i64),
     Tuple(Span<'src>, Vec<Rc<Pattern<'src>>>),
 }
 
@@ -30,6 +31,7 @@ impl<'src> Pattern<'src> {
             (Pattern::Id(_, id), _) => Some(scope.update(id, value)),
             (Pattern::True(_), Value::Bool(true)) => Some(scope),
             (Pattern::False(_), Value::Bool(false)) => Some(scope),
+            (Pattern::Int(_, int1), Value::Int(int2)) if int1 == int2 => Some(scope),
             (Pattern::Tuple(_, pats), Value::Tuple(vals)) => {
                 if pats.len() != vals.len() {
                     return None;
@@ -51,6 +53,7 @@ impl<'src> Pattern<'src> {
             (Pattern::Id(_, id), _) => Some(scope.update(id, ty)),
             (Pattern::True(_), Type::Bool) => Some(scope),
             (Pattern::False(_), Type::Bool) => Some(scope),
+            (Pattern::Int(_, _), Type::Int) => Some(scope),
             (Pattern::Tuple(_, pats), Type::Tuple(types)) => {
                 if pats.len() != types.len() {
                     return None;
@@ -72,6 +75,7 @@ impl<'src> fmt::Display for Pattern<'src> {
             Pattern::Id(_, id) => write!(f, "{}", id),
             Pattern::True(_) => write!(f, "true"),
             Pattern::False(_) => write!(f, "false"),
+            Pattern::Int(_, int) => write!(f, "{}", int),
             Pattern::Tuple(_, pats) => match pats.as_slice() {
                 [] => write!(f, "()"),
                 [pat] => write!(f, "({},)", pat),
