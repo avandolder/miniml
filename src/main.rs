@@ -66,10 +66,21 @@ fn main() {
         let twice: (Bool -> Bool) -> Bool -> Bool =
           fn f: Bool -> Bool => (fn b: Bool => f (f b)) in
         let not: Bool -> Bool = fn b: Bool =>
-        match b with
-          | true => false
-          | false => true in
-        twice not true
+          match b with
+            | true => false
+            | false => true
+        in
+        let and: Bool -> Bool -> Bool = fn x: Bool => fn y: Bool =>
+          match (x, y) with
+            | (true, true) => true
+            | _ => false
+        in
+        let or: Bool -> Bool -> Bool = fn x: Bool => fn y: Bool =>
+          match (x, y) with
+            | (true, _) => true
+            | (false, z) => z
+        in
+        and (twice not true) (or false true)
     "#;
     let term = parse(src);
     let ty = term.type_check(hashmap![]).expect("type check failed");
@@ -87,9 +98,9 @@ mod test {
     fn parser_test() {
         let src = r#"
             let not: (Bool -> Bool) = fn b: Bool =>
-            match b with
-                true => false
-            | false => true in
+              match b with
+                | true => false
+                | false => true in
             not true
         "#;
         let term1 = parse(src);
@@ -142,5 +153,33 @@ mod test {
             val.to_string(),
             "((), (), (), ((),), (true, false), (true, false))"
         );
+    }
+
+    #[test]
+    fn logical_operations() {
+        let src = r#"
+            let twice: (Bool -> Bool) -> Bool -> Bool =
+              fn f: Bool -> Bool => (fn b: Bool => f (f b)) in
+            let not: Bool -> Bool = fn b: Bool =>
+              match b with
+                | true => false
+                | false => true
+            in
+            let and: Bool -> Bool -> Bool = fn x: Bool => fn y: Bool =>
+              match (x, y) with
+                | (true, true) => true
+                | _ => false
+            in
+            let or: Bool -> Bool -> Bool = fn x: Bool => fn y: Bool =>
+              match (x, y) with
+                | (true, _) => true
+                | (false, z) => z
+            in
+            and (twice not true) (or false true)
+        "#;
+        let term = parse(src);
+        let _ty = term.type_check(hashmap![]).expect("type check failed");
+        let val = eval(hashmap![], &term);
+        assert_eq!(val.to_string(), "true");
     }
 }

@@ -88,23 +88,26 @@ impl<'src> Term<'src> {
                 let term_type = term.type_check(scope.clone())?;
 
                 let (pat, result) = &pats[0];
-                if !pat.type_check(&term_type) {
+                let result_type;
+                if let Some(scope) = pat.match_type(scope.clone(), term_type.clone()) {
+                    result_type = result.type_check(scope)?;
+                } else {
                     return Err(format!(
                         "pattern {:?} can't match type {:?} at {:?}",
                         pat, term_type, info
                     ));
                 }
-                let result_type = result.type_check(scope.clone())?;
 
                 for (next_pat, next_result) in &pats[1..] {
-                    if !next_pat.type_check(&term_type) {
+                    if let Some(scope) = next_pat.match_type(scope.clone(), term_type.clone()) {
+                        if result_type != next_result.type_check(scope)? {
+                            return Err(format!("type mismatch in match arms at {:?}", info));
+                        }
+                    } else {
                         return Err(format!(
                             "pattern {:?} can't match type {:?} at {:?}",
                             next_pat, term_type, info
                         ));
-                    }
-                    if result_type != next_result.type_check(scope.clone())? {
-                        return Err(format!("type mismatch in match arms at {:?}", info));
                     }
                 }
 

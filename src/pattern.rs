@@ -20,23 +20,6 @@ pub(crate) enum Pattern<'src> {
 }
 
 impl<'src> Pattern<'src> {
-    pub(crate) fn type_check(&self, ty: &Type) -> bool {
-        match (self, ty) {
-            (Pattern::Any(_), _) => true,
-            (Pattern::Id(_, _), _) => true,
-            (Pattern::True(_), Type::Bool) => true,
-            (Pattern::False(_), Type::Bool) => true,
-            (Pattern::Tuple(_, pats), Type::Tuple(types)) => {
-                pats.len() == types.len()
-                    && pats
-                        .iter()
-                        .zip(types.iter())
-                        .all(|(pat, ty)| pat.type_check(ty))
-            }
-            _ => false,
-        }
-    }
-
     pub(crate) fn match_value(
         &self,
         scope: VScope<'src>,
