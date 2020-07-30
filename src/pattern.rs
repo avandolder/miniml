@@ -16,6 +16,7 @@ pub(crate) enum Pattern<'src> {
     Id(Span<'src>, &'src str),
     True(Span<'src>),
     False(Span<'src>),
+    Tuple(Span<'src>, Vec<Rc<Pattern<'src>>>),
 }
 
 impl<'src> Pattern<'src> {
@@ -25,6 +26,13 @@ impl<'src> Pattern<'src> {
             (Pattern::Id(_, _), _) => true,
             (Pattern::True(_), Type::Bool) => true,
             (Pattern::False(_), Type::Bool) => true,
+            (Pattern::Tuple(_, pats), Type::Tuple(types)) => {
+                pats.len() == types.len()
+                    && pats
+                        .iter()
+                        .zip(types.iter())
+                        .all(|(pat, ty)| pat.type_check(ty))
+            }
             _ => false,
         }
     }
@@ -39,6 +47,17 @@ impl<'src> Pattern<'src> {
             (Pattern::Id(_, id), _) => Some(scope.update(id, value)),
             (Pattern::True(_), Value::Bool(true)) => Some(scope),
             (Pattern::False(_), Value::Bool(false)) => Some(scope),
+            (Pattern::Tuple(_, pats), Value::Tuple(vals)) => {
+                if pats.len() != vals.len() {
+                    return None;
+                }
+
+                pats.iter()
+                    .zip(vals.iter())
+                    .try_fold(scope, |scope, (pat, val)| {
+                        pat.match_value(scope, val.clone())
+                    })
+            }
             _ => None,
         }
     }
@@ -49,6 +68,15 @@ impl<'src> Pattern<'src> {
             (Pattern::Id(_, id), _) => Some(scope.update(id, ty)),
             (Pattern::True(_), Type::Bool) => Some(scope),
             (Pattern::False(_), Type::Bool) => Some(scope),
+            (Pattern::Tuple(_, pats), Type::Tuple(types)) => {
+                if pats.len() != types.len() {
+                    return None;
+                }
+
+                pats.iter()
+                    .zip(types.iter())
+                    .try_fold(scope, |scope, (pat, ty)| pat.match_type(scope, ty.clone()))
+            }
             _ => None,
         }
     }
@@ -61,6 +89,17 @@ impl<'src> fmt::Display for Pattern<'src> {
             Pattern::Id(_, id) => write!(f, "{}", id),
             Pattern::True(_) => write!(f, "true"),
             Pattern::False(_) => write!(f, "false"),
+            Pattern::Tuple(_, pats) => match pats.as_slice() {
+                [] => write!(f, "()"),
+                [pat] => write!(f, "({},)", pat),
+                pats => {
+                    write!(f, "(")?;
+                    for pat in &pats[..pats.len() - 1] {
+                        write!(f, "{}, ", pat)?;
+                    }
+                    write!(f, "{})", pats.last().unwrap())
+                }
+            },
         }
     }
 }

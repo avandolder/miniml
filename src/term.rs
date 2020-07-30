@@ -28,6 +28,7 @@ pub(crate) enum Term<'src> {
     ),
     True(Span<'src>),
     False(Span<'src>),
+    Tuple(Span<'src>, Vec<Rc<Term<'src>>>),
 }
 
 impl<'src> Term<'src> {
@@ -58,6 +59,12 @@ impl<'src> Term<'src> {
             }
             True(_) => Rc::new(Type::Bool),
             False(_) => Rc::new(Type::Bool),
+            Tuple(_, terms) => Rc::new(Type::Tuple(
+                terms
+                    .iter()
+                    .map(|term| term.type_of(scope.clone()))
+                    .collect(),
+            )),
         }
     }
 
@@ -134,6 +141,12 @@ impl<'src> Term<'src> {
             }
             True(_) => Ok(Rc::new(Type::Bool)),
             False(_) => Ok(Rc::new(Type::Bool)),
+            Tuple(_, terms) => Ok(Rc::new(Type::Tuple(
+                terms
+                    .iter()
+                    .map(|term| term.type_check(scope.clone()))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ))),
         }
     }
 }
@@ -157,6 +170,17 @@ impl<'src> fmt::Display for Term<'src> {
             }
             True(_) => write!(f, "true"),
             False(_) => write!(f, "false"),
+            Tuple(_, terms) => match terms.as_slice() {
+                [] => write!(f, "()"),
+                [term] => write!(f, "({},)", term),
+                terms => {
+                    write!(f, "(")?;
+                    for term in &terms[..terms.len() - 1] {
+                        write!(f, "{}, ", term)?;
+                    }
+                    write!(f, "{})", terms.last().unwrap())
+                }
+            },
         }
     }
 }

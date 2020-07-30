@@ -56,6 +56,12 @@ fn parse_term(pair: Pair<Rule>) -> Term {
         Rule::Id => Term::Id(pair.as_span(), pair.as_str()),
         Rule::True => Term::True(pair.as_span()),
         Rule::False => Term::False(pair.as_span()),
+        Rule::Tuple => Term::Tuple(
+            pair.as_span(),
+            pair.into_inner()
+                .map(|pair| Rc::new(parse_term(pair)))
+                .collect(),
+        ),
         _ => panic!("term: {}", pair),
     }
 }
@@ -91,6 +97,12 @@ fn parse_pattern(pair: Pair<Rule>) -> Pattern {
         Rule::Id => Pattern::Id(pair.as_span(), pair.as_str()),
         Rule::True => Pattern::True(pair.as_span()),
         Rule::False => Pattern::False(pair.as_span()),
+        Rule::TuplePattern => Pattern::Tuple(
+            pair.as_span(),
+            pair.into_inner()
+                .map(|pair| Rc::new(parse_pattern(pair)))
+                .collect(),
+        ),
         _ => panic!("pattern: {:?}", pair.as_span()),
     }
 }
@@ -105,6 +117,11 @@ fn parse_type(pair: Pair<Rule>) -> Type {
             let rhs = parse_type(pairs.next().unwrap());
             Type::Arr(Rc::new(lhs), Rc::new(rhs))
         }
+        Rule::TupleType => Type::Tuple(
+            pair.into_inner()
+                .map(|pair| Rc::new(parse_type(pair)))
+                .collect(),
+        ),
         _ => panic!("type: {}", pair),
     }
 }

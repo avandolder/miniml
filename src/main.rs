@@ -46,6 +46,9 @@ fn eval<'a>(scope: VScope<'a>, t: &Term<'a>) -> Rc<Value<'a>> {
         }
         True(_) => Rc::new(Value::Bool(true)),
         False(_) => Rc::new(Value::Bool(false)),
+        Tuple(_info, terms) => Rc::new(Value::Tuple(
+            terms.iter().map(|term| eval(scope.clone(), term)).collect(),
+        )),
     }
 }
 
@@ -119,5 +122,25 @@ mod test {
         );
 
         assert_eq!(term1.to_string(), term2.to_string());
+    }
+
+    #[test]
+    fn tuple_test() {
+        let src = "((), ( ), (()), ((),), (true, false), (true, false,))";
+        let term = parse(src);
+        assert_eq!(
+            term.to_string(),
+            "((), (), (), ((),), (true, false), (true, false))"
+        );
+        let ty = term.type_check(hashmap![]).unwrap();
+        assert_eq!(
+            ty.to_string(),
+            "((), (), (), ((),), (Bool, Bool), (Bool, Bool))"
+        );
+        let val = eval(hashmap![], &term);
+        assert_eq!(
+            val.to_string(),
+            "((), (), (), ((),), (true, false), (true, false))"
+        );
     }
 }

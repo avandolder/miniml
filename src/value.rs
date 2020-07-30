@@ -11,6 +11,7 @@ type VScope<'src> = Scope<'src, Value<'src>>;
 pub(crate) enum Value<'src> {
     Bool(bool),
     Lambda(VScope<'src>, Rc<Pattern<'src>>, Rc<Term<'src>>),
+    Tuple(Vec<Rc<Value<'src>>>),
 }
 
 impl<'src> fmt::Display for Value<'src> {
@@ -18,6 +19,17 @@ impl<'src> fmt::Display for Value<'src> {
         match self {
             Value::Bool(bool) => write!(f, "{}", bool),
             Value::Lambda(_, pat, term) => write!(f, "fn {} => {}", pat, term),
+            Value::Tuple(values) => match values.as_slice() {
+                [] => write!(f, "()"),
+                [value] => write!(f, "({},)", value),
+                values => {
+                    write!(f, "(")?;
+                    for value in &values[..values.len() - 1] {
+                        write!(f, "{}, ", value)?;
+                    }
+                    write!(f, "{})", values.last().unwrap())
+                }
+            },
         }
     }
 }
