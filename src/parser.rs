@@ -59,10 +59,14 @@ fn parse_term(pair: Pair<Rule>) -> Term {
             let tcond = parse_term(pairs.next().unwrap());
             let tthen = parse_term(pairs.next().unwrap());
             let telse = parse_term(pairs.next().unwrap());
-            Term::Match(span.clone(), Rc::new(tcond), vec![
-                (Rc::new(Pattern::True(span.clone())), Rc::new(tthen)),
-                (Rc::new(Pattern::False(span.clone())), Rc::new(telse)),
-            ])
+            Term::Match(
+                span.clone(),
+                Rc::new(tcond),
+                vec![
+                    (Rc::new(Pattern::True(span.clone())), Rc::new(tthen)),
+                    (Rc::new(Pattern::False(span.clone())), Rc::new(telse)),
+                ],
+            )
         }
         Rule::Id => Term::Id(pair.as_span(), pair.as_str()),
         Rule::True => Term::True(pair.as_span()),
@@ -72,6 +76,22 @@ fn parse_term(pair: Pair<Rule>) -> Term {
             pair.as_span(),
             pair.into_inner()
                 .map(|pair| Rc::new(parse_term(pair)))
+                .collect(),
+        ),
+        Rule::Record => Term::Record(
+            pair.as_span(),
+            pair.into_inner()
+                .map(|field| {
+                    let span = field.as_span();
+                    let mut field = field.into_inner();
+                    let id = field.next().unwrap().as_str();
+                    let term = Rc::new(if let Some(term) = field.next() {
+                        parse_term(term)
+                    } else {
+                        Term::Id(span.clone(), id)
+                    });
+                    (span, id, term)
+                })
                 .collect(),
         ),
         _ => panic!("term: {}", pair),
@@ -109,10 +129,27 @@ fn parse_pattern(pair: Pair<Rule>) -> Pattern {
         Rule::Id => Pattern::Id(pair.as_span(), pair.as_str()),
         Rule::True => Pattern::True(pair.as_span()),
         Rule::False => Pattern::False(pair.as_span()),
+        Rule::Int => Pattern::Int(pair.as_span(), pair.as_str().parse().unwrap()),
         Rule::TuplePattern => Pattern::Tuple(
             pair.as_span(),
             pair.into_inner()
                 .map(|pair| Rc::new(parse_pattern(pair)))
+                .collect(),
+        ),
+        Rule::RecordPattern => Pattern::Record(
+            pair.as_span(),
+            pair.into_inner()
+                .map(|field| {
+                    let span = field.as_span();
+                    let mut field = field.into_inner();
+                    let id = field.next().unwrap().as_str();
+                    let pat = Rc::new(if let Some(pat) = field.next() {
+                        parse_pattern(pat)
+                    } else {
+                        Pattern::Id(span.clone(), id)
+                    });
+                    (span, id, pat)
+                })
                 .collect(),
         ),
         _ => panic!("pattern: {:?}", pair.as_span()),
@@ -123,6 +160,7 @@ fn parse_type(pair: Pair<Rule>) -> Type {
     match pair.as_rule() {
         Rule::Type => parse_type(pair.into_inner().next().unwrap()),
         Rule::BoolType => Type::Bool,
+        Rule::IntType => Type::Int,
         Rule::Arrow => {
             let mut pairs = pair.into_inner();
             let lhs = parse_type(pairs.next().unwrap());
@@ -134,18 +172,28 @@ fn parse_type(pair: Pair<Rule>) -> Type {
                 .map(|pair| Rc::new(parse_type(pair)))
                 .collect(),
         ),
+        Rule::RecordType => Type::Record(
+            pair.into_inner()
+                .map(|field| {
+                    let mut field = field.into_inner();
+                    let id = field.next().unwrap().as_str();
+                    let ty = Rc::new(parse_type(field.next().unwrap()));
+                    (id, ty)
+                })
+                .collect(),
+        ),
         _ => panic!("type: {}", pair),
     }
 }
 
-pub(crate) fn parse(src: &str) -> Term {
-    parse_term(
+pub(crate) fn parse(src: &str) -> Result<Term, String> {
+    Ok(parse_term(
         TermParser::parse(Rule::Program, src)
-            .expect("parse failed")
+            .map_err(|err| err.to_string())?
             .next()
-            .unwrap()
+            .ok_or("")?
             .into_inner()
             .next()
-            .unwrap(),
-    )
+            .ok_or("")?,
+    ))
 }

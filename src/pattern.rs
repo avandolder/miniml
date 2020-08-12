@@ -1,13 +1,14 @@
 use std::fmt;
 use std::rc::Rc;
 
+use boolinator::Boolinator;
 use pest::Span;
 
 use crate::types::Type;
 use crate::value::Value;
 
 type Scope<'src, T> = im_rc::HashMap<&'src str, Rc<T>>;
-type TScope<'src> = Scope<'src, Type>;
+type TScope<'src> = Scope<'src, Type<'src>>;
 type VScope<'src> = Scope<'src, Value<'src>>;
 
 #[derive(Clone, Debug)]
@@ -18,6 +19,7 @@ pub(crate) enum Pattern<'src> {
     False(Span<'src>),
     Int(Span<'src>, i64),
     Tuple(Span<'src>, Vec<Rc<Pattern<'src>>>),
+    Record(Span<'src>, Vec<(Span<'src>, &'src str, Rc<Pattern<'src>>)>),
 }
 
 impl<'src> Pattern<'src> {
@@ -43,11 +45,29 @@ impl<'src> Pattern<'src> {
                         pat.match_value(scope, val.clone())
                     })
             }
+            (Pattern::Record(_, pats), Value::Record(vals)) => {
+                if pats.len() != vals.len() {
+                    return None;
+                }
+
+                pats.iter().zip(vals.iter()).try_fold(
+                    scope,
+                    |scope, ((_, id1, pat), (id2, val))| {
+                        (id1 == id2)
+                            .as_option()
+                            .and_then(|_| pat.match_value(scope, val.clone()))
+                    },
+                )
+            }
             _ => None,
         }
     }
 
-    pub(crate) fn match_type(&self, scope: TScope<'src>, ty: Rc<Type>) -> Option<TScope<'src>> {
+    pub(crate) fn match_type(
+        &self,
+        scope: TScope<'src>,
+        ty: Rc<Type<'src>>,
+    ) -> Option<TScope<'src>> {
         match (self, ty.as_ref()) {
             (Pattern::Any(_), _) => Some(scope),
             (Pattern::Id(_, id), _) => Some(scope.update(id, ty)),
@@ -62,6 +82,19 @@ impl<'src> Pattern<'src> {
                 pats.iter()
                     .zip(types.iter())
                     .try_fold(scope, |scope, (pat, ty)| pat.match_type(scope, ty.clone()))
+            }
+            (Pattern::Record(_, pats), Type::Record(tys)) => {
+                if pats.len() != tys.len() {
+                    return None;
+                }
+
+                pats.iter()
+                    .zip(tys.iter())
+                    .try_fold(scope, |scope, ((_, id1, pat), (id2, ty))| {
+                        (id1 == id2)
+                            .as_option()
+                            .and_then(|_| pat.match_type(scope, ty.clone()))
+                    })
             }
             _ => None,
         }
@@ -87,6 +120,16 @@ impl<'src> fmt::Display for Pattern<'src> {
                     write!(f, "{})", pats.last().unwrap())
                 }
             },
+            Pattern::Record(_, record) => {
+                write!(f, "{{ ")?;
+                for (_, id, pat) in &record[..record.len() - 1] {
+                    write!(f, "{}: {}, ", id, pat)?;
+                }
+                if let Some((_, id, pat)) = record.last() {
+                    write!(f, "{}: {} ", id, pat)?;
+                }
+                write!(f, "}}")
+            }
         }
     }
 }

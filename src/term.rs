@@ -7,7 +7,7 @@ use pest::Span;
 use crate::pattern::Pattern;
 use crate::types::Type;
 
-type TScope<'src> = im_rc::HashMap<&'src str, Rc<Type>>;
+type TScope<'src> = im_rc::HashMap<&'src str, Rc<Type<'src>>>;
 
 #[derive(Clone, Debug)]
 pub(crate) enum Term<'src> {
@@ -18,11 +18,16 @@ pub(crate) enum Term<'src> {
         Vec<(Rc<Pattern<'src>>, Rc<Term<'src>>)>,
     ),
     Id(Span<'src>, &'src str),
-    Lambda(Span<'src>, Rc<Pattern<'src>>, Rc<Type>, Rc<Term<'src>>),
+    Lambda(
+        Span<'src>,
+        Rc<Pattern<'src>>,
+        Rc<Type<'src>>,
+        Rc<Term<'src>>,
+    ),
     Let(
         Span<'src>,
         Rc<Pattern<'src>>,
-        Rc<Type>,
+        Rc<Type<'src>>,
         Rc<Term<'src>>,
         Rc<Term<'src>>,
     ),
@@ -30,10 +35,11 @@ pub(crate) enum Term<'src> {
     False(Span<'src>),
     Tuple(Span<'src>, Vec<Rc<Term<'src>>>),
     Int(Span<'src>, i64),
+    Record(Span<'src>, Vec<(Span<'src>, &'src str, Rc<Term<'src>>)>),
 }
 
 impl<'src> Term<'src> {
-    fn type_of(&self, scope: TScope<'src>) -> Rc<Type> {
+    fn type_of(&self, scope: TScope<'src>) -> Rc<Type<'src>> {
         use Term::*;
         match self {
             Apply(_info, t1, _t2) => match t1.type_of(scope).as_ref() {
@@ -60,17 +66,23 @@ impl<'src> Term<'src> {
             }
             True(_) => Rc::new(Type::Bool),
             False(_) => Rc::new(Type::Bool),
+            Int(_, _) => Rc::new(Type::Int),
             Tuple(_, terms) => Rc::new(Type::Tuple(
                 terms
                     .iter()
                     .map(|term| term.type_of(scope.clone()))
                     .collect(),
             )),
-            Int(_, _) => Rc::new(Type::Int),
+            Record(_, record) => Rc::new(Type::Record(
+                record
+                    .iter()
+                    .map(|(_, id, term)| (*id, term.type_of(scope.clone())))
+                    .collect(),
+            )),
         }
     }
 
-    pub(crate) fn type_check(&self, scope: TScope<'src>) -> Result<Rc<Type>, String> {
+    pub(crate) fn type_check(&self, scope: TScope<'src>) -> Result<Rc<Type<'src>>, String> {
         use Term::*;
         match self {
             Apply(info, t1, t2) => {
@@ -146,13 +158,21 @@ impl<'src> Term<'src> {
             }
             True(_) => Ok(Rc::new(Type::Bool)),
             False(_) => Ok(Rc::new(Type::Bool)),
+            Int(_, _) => Ok(Rc::new(Type::Int)),
             Tuple(_, terms) => Ok(Rc::new(Type::Tuple(
                 terms
                     .iter()
                     .map(|term| term.type_check(scope.clone()))
                     .collect::<Result<Vec<_>, _>>()?,
             ))),
-            Int(_, _) => Ok(Rc::new(Type::Int)),
+            Record(_, record) => Ok(Rc::new(Type::Record(
+                record
+                    .iter()
+                    .map::<Result<_, String>, _>(|(_, id, term)| {
+                        Ok((*id, term.type_check(scope.clone())?))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            ))),
         }
     }
 }
@@ -186,6 +206,16 @@ impl<'src> fmt::Display for Term<'src> {
                     }
                     write!(f, "{})", terms.last().unwrap())
                 }
+            },
+            Record(_, record) => {
+                write!(f, "{{ ")?;
+                for (_, id, term) in &record[..record.len() - 1] {
+                    write!(f, "{}: {}, ", id, term)?;
+                }
+                if let Some((_, id, term)) = record.last() {
+                    write!(f, "{}: {} ", id, term)?;
+                }
+                write!(f, "}}")
             }
             Int(_, int) => write!(f, "{}", int),
         }

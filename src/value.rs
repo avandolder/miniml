@@ -13,6 +13,7 @@ pub(crate) enum Value<'src> {
     Int(i64),
     Lambda(VScope<'src>, Rc<Pattern<'src>>, Rc<Term<'src>>),
     Tuple(Vec<Rc<Value<'src>>>),
+    Record(Vec<(&'src str, Rc<Value<'src>>)>),
 }
 
 impl<'src> fmt::Display for Value<'src> {
@@ -32,6 +33,16 @@ impl<'src> fmt::Display for Value<'src> {
                     write!(f, "{})", values.last().unwrap())
                 }
             },
+            Value::Record(record) => {
+                write!(f, "{{ ")?;
+                for (id, val) in &record[..record.len() - 1] {
+                    write!(f, "{}: {}, ", id, val)?;
+                }
+                if let Some((id, val)) = record.last() {
+                    write!(f, "{}: {} ", id, val)?;
+                }
+                write!(f, "}}")
+            }
         }
     }
 }

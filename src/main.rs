@@ -46,10 +46,16 @@ fn eval<'a>(scope: VScope<'a>, t: &Term<'a>) -> Rc<Value<'a>> {
         }
         True(_) => Rc::new(Value::Bool(true)),
         False(_) => Rc::new(Value::Bool(false)),
+        Int(_, int) => Rc::new(Value::Int(*int)),
         Tuple(_info, terms) => Rc::new(Value::Tuple(
             terms.iter().map(|term| eval(scope.clone(), term)).collect(),
         )),
-        Int(_, int) => Rc::new(Value::Int(*int)),
+        Record(_info, record) => Rc::new(Value::Record(
+            record
+                .iter()
+                .map(|(_, id, term)| (*id, eval(scope.clone(), term)))
+                .collect(),
+        )),
     }
 }
 
@@ -62,18 +68,27 @@ fn apply<'a>(info: &Span<'a>, fun: Rc<Value<'a>>, arg: Rc<Value<'a>>) -> Rc<Valu
     }
 }
 
+fn interpret(src: &str) -> Result<Rc<Value>, String> {
+    let term = parse(src)?;
+    term.type_check(hashmap![])?;
+    Ok(eval(hashmap![], &term))
+}
+
 fn main() {
     let src = r#"
         let not: (Bool -> Bool) = fn b: Bool =>
           match b with
             | true => false
             | false => true in
-        if not true then 0 else 10
+        let zero: Int = 0 in
+        let x: Int = 20 in
+        let pt: {x: Int, y: Int} = {x, y: 20} in
+        let get_x: {x: Int, y: Int} -> Int =
+          fn {x, y}: {x: Int, y: Int} => x
+        in
+        if not true then zero else get_x pt
     "#;
-    let term = parse(src);
-    let ty = term.type_check(hashmap![]).expect("type check failed");
-    let val = eval(hashmap![], &term);
-    println!("{}\n\n==> {} : {}", term, val, ty);
+    println!("{}", interpret(src).unwrap());
 }
 
 #[cfg(test)]
@@ -91,7 +106,7 @@ mod test {
                 | false => true in
             not true
         "#;
-        let term1 = parse(src);
+        let term1 = parse(src).unwrap();
 
         let dummy_info = || pest::Span::new("", 0, 0).unwrap();
         let tfalse = Rc::new(Term::False(dummy_info()));
@@ -126,7 +141,7 @@ mod test {
     #[test]
     fn tuple_test() {
         let src = "((), ( ), (()), ((),), (true, false), (true, false,))";
-        let term = parse(src);
+        let term = parse(src).unwrap();
         assert_eq!(
             term.to_string(),
             "((), (), (), ((),), (true, false), (true, false))"
@@ -165,7 +180,7 @@ mod test {
             in
             and (twice not true) (or false true)
         "#;
-        let term = parse(src);
+        let term = parse(src).unwrap();
         let _ty = term.type_check(hashmap![]).expect("type check failed");
         let val = eval(hashmap![], &term);
         assert_eq!(val.to_string(), "true");
