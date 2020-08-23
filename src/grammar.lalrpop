@@ -1,0 +1,15 @@
+use std::str::FromStr;
+use std::rc::Rc;
+
+use pattern::Pattern;
+use term::Term;
+use types::Type;
+
+grammar;
+
+pub Term = {
+    <Num>,
+    "(" <Term> ")",
+};
+
+Num: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();

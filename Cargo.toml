@@ -4,8 +4,13 @@ version = "0.1.0"
 authors = ["Adam Vandolder <adam.vandolder@gmail.com>"]
 edition = "2018"
 
+[build-dependencies]
+lalrpop = { version = "0.19", features = ["lexer"] }
+
 [dependencies]
 boolinator = "2"
 im-rc = "15"
 pest = "2"
 pest_derive = "2"
+lalrpop-util = "0.19"
+regex = "1"
