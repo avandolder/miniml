@@ -25,16 +25,15 @@ fn parse_term(pair: Pair<Rule>) -> Term {
             let span = pair.as_span();
             let mut pairs = pair.into_inner();
             let pat = parse_pattern(pairs.next().unwrap());
-            let ty = parse_type(pairs.next().unwrap());
-            let let_term = parse_term(pairs.next().unwrap());
+            let (ty, let_term) = match pairs.next().unwrap() {
+                p if p.as_rule() == Rule::Type => (
+                    Some(Rc::new(parse_type(p))),
+                    parse_term(pairs.next().unwrap()),
+                ),
+                p => (None, parse_term(p)),
+            };
             let in_term = parse_term(pairs.next().unwrap());
-            Term::Let(
-                span,
-                Rc::new(pat),
-                Rc::new(ty),
-                Rc::new(let_term),
-                Rc::new(in_term),
-            )
+            Term::Let(span, Rc::new(pat), ty, Rc::new(let_term), Rc::new(in_term))
         }
         Rule::Match => {
             let span = pair.as_span();

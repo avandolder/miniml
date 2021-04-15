@@ -76,16 +76,14 @@ fn interpret(src: &str) -> Result<Rc<Value>, String> {
 
 fn main() {
     let src = r#"
-        let not: (Bool -> Bool) = fn b: Bool =>
+        let not = fn b: Bool =>
           match b with
             | true => false
             | false => true in
-        let zero: Int = 0 in
-        let x: Int = 20 in
-        let pt: {x: Int, y: Int} = {x, y: 20} in
-        let get_x: {x: Int, y: Int} -> Int =
-          fn {x, y}: {x: Int, y: Int} => x
-        in
+        let zero = 0 in
+        let x = 20 in
+        let pt = {x, y: 20} in
+        let get_x = fn {x, y}: {x: Int, y: Int} => x in
         if not true then zero else get_x pt
     "#;
     println!("{}", interpret(src).unwrap());
@@ -114,7 +112,7 @@ mod test {
         let term2 = Term::Let(
             dummy_info(),
             Rc::new(Pattern::Id(dummy_info(), "not")),
-            Rc::new(Type::Arr(Rc::new(Type::Bool), Rc::new(Type::Bool))),
+            Some(Rc::new(Type::Arr(Rc::new(Type::Bool), Rc::new(Type::Bool)))),
             Rc::new(Term::Lambda(
                 dummy_info(),
                 Rc::new(Pattern::Id(dummy_info(), "b")),

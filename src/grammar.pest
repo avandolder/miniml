@@ -18,7 +18,7 @@ ValTerm = _{
     | "(" ~ Term ~ ")"
 }
 Lambda = { "fn" ~ Pattern ~ ":" ~ Type ~ "=>" ~ Term }
-Let = { "let" ~ Pattern ~ ":" ~ Type ~ "=" ~ Term ~ "in" ~ Term }
+Let = { "let" ~ Pattern ~ (":" ~ Type)? ~ "=" ~ Term ~ "in" ~ Term }
 Tuple = { Unit | "(" ~ (Term ~ ",")+ ~ Term? ~ ")" }
 Record = { "{" ~ RecordField ~ ("," ~ RecordField)* ~ ","? ~ "}" }
 RecordField = { Id ~ ":" ~ Term | Id }

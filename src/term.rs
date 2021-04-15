@@ -27,7 +27,7 @@ pub(crate) enum Term<'src> {
     Let(
         Span<'src>,
         Rc<Pattern<'src>>,
-        Rc<Type<'src>>,
+        Option<Rc<Type<'src>>>,
         Rc<Term<'src>>,
         Rc<Term<'src>>,
     ),
@@ -58,7 +58,12 @@ impl<'src> Term<'src> {
             Lambda(_info, _param, ty, term) => {
                 Rc::new(Type::Arr(ty.clone(), term.as_ref().type_of(scope)))
             }
-            Let(info, pat, ty, _, in_term) => {
+            Let(info, pat, ty, term, in_term) => {
+                let ty = ty
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or_else(|| term.type_of(scope.clone()));
+
                 let scope = pat
                     .match_type(scope, ty.clone())
                     .unwrap_or_else(|| panic!("pattern doesn't match type at {:?}", info));
@@ -145,14 +150,15 @@ impl<'src> Term<'src> {
             }
             Let(info, pat, ty, let_term, in_term) => {
                 let let_type = let_term.type_check(scope.clone())?;
-                if ty.as_ref() != let_type.as_ref() {
+
+                if ty.is_some() && ty.as_ref().unwrap().as_ref() != let_type.as_ref() {
                     return Err(format!(
                         "expected {:?} got {:?} at {:?}",
                         ty, let_type, info
                     ));
                 }
                 let scope = pat
-                    .match_type(scope, ty.clone())
+                    .match_type(scope, let_type.clone())
                     .ok_or_else(|| format!("pattern doesn't match type at {:?}", info))?;
                 in_term.type_check(scope)
             }
@@ -191,8 +197,11 @@ impl<'src> fmt::Display for Term<'src> {
             }
             Id(_, id) => write!(f, "{}", id),
             Lambda(_, param, ty, term) => write!(f, "fn {}: {} => {}", param, ty, term),
-            Let(_, pat, ty, let_term, in_term) => {
+            Let(_, pat, Some(ty), let_term, in_term) => {
                 write!(f, "let {}: {} = {} in\n{}", pat, ty, let_term, in_term)
+            }
+            Let(_, pat, _, let_term, in_term) => {
+                write!(f, "let {} = {} in\n{}", pat, let_term, in_term)
             }
             True(_) => write!(f, "true"),
             False(_) => write!(f, "false"),
