@@ -12,6 +12,13 @@ pub(crate) enum Type<'src> {
     Tuple(Vec<Rc<Type<'src>>>),
     Record(Vec<(&'src str, Rc<Type<'src>>)>),
     Var(usize),
+    PolyVar(usize),
+}
+
+#[derive(Clone, Copy)]
+enum VarType {
+    Mono,
+    Poly,
 }
 
 impl<'src> fmt::Display for Type<'src> {
@@ -41,7 +48,7 @@ impl<'src> fmt::Display for Type<'src> {
                 }
                 write!(f, "}}")
             }
-            Type::Var(n) => {
+            Type::Var(n) | Type::PolyVar(n) => {
                 let primes = n / 26;
                 let c = ((n % 26) as u8 + b'a') as char;
                 write!(f, "{}", c)?;
@@ -63,9 +70,15 @@ type TypeScope<'src> = im_rc::HashMap<&'src str, Rc<Type<'src>>>;
 
 impl<'src> TypeChecker<'src> {
     fn fresh(&mut self) -> Rc<Type<'static>> {
-        let fresh_var = self.var_count;
+        let fresh_var = Rc::new(Type::Var(self.var_count));
         self.var_count += 1;
-        Rc::new(Type::Var(fresh_var))
+        fresh_var
+    }
+
+    fn fresh_poly(&mut self) -> Rc<Type<'static>> {
+        let fresh_var = Rc::new(Type::PolyVar(self.var_count));
+        self.var_count += 1;
+        fresh_var
     }
 
     fn check_term(
@@ -97,7 +110,7 @@ impl<'src> TypeChecker<'src> {
                 let result_type = self.fresh();
 
                 for (pat, arm) in arms {
-                    let (pat_ty, new_vars) = self.check_pattern(pat.clone())?;
+                    let (pat_ty, new_vars) = self.check_pattern(pat.clone(), VarType::Mono)?;
                     self.unify(case_type.clone(), pat_ty)?;
                     let arm_type = self.check_term(arm.clone(), new_vars.union(vars.clone()))?;
                     self.unify(result_type.clone(), arm_type)?;
@@ -107,7 +120,7 @@ impl<'src> TypeChecker<'src> {
             }
 
             Term::Lambda(_, pat, param_ty, body) => {
-                let (pat_ty, new_vars) = self.check_pattern(pat.clone())?;
+                let (pat_ty, new_vars) = self.check_pattern(pat.clone(), VarType::Mono)?;
                 if let Some(ty) = param_ty {
                     self.unify(pat_ty.clone(), ty.clone())?;
                 }
@@ -116,7 +129,7 @@ impl<'src> TypeChecker<'src> {
             }
 
             Term::Let(_, pat, ty, t1, t2) => {
-                let (pat_ty, new_vars) = self.check_pattern(pat.clone())?;
+                let (pat_ty, new_vars) = self.check_pattern(pat.clone(), VarType::Poly)?;
                 if let Some(ty) = ty {
                     self.unify(pat_ty.clone(), ty.clone())?;
                 }
@@ -148,11 +161,15 @@ impl<'src> TypeChecker<'src> {
     fn check_pattern(
         &mut self,
         pat: Rc<Pattern<'src>>,
+        var_type: VarType,
     ) -> Result<(Rc<Type<'src>>, TypeScope<'src>), String> {
         match pat.as_ref() {
             Pattern::Any(_) => Ok((self.fresh(), im_rc::hashmap![])),
             Pattern::Id(_, id) => {
-                let type_var = self.fresh();
+                let type_var = match var_type {
+                    VarType::Mono => self.fresh(),
+                    VarType::Poly => self.fresh_poly(),
+                };
                 let new_vars = im_rc::hashmap![*id => type_var.clone()];
                 Ok((type_var, new_vars))
             }
@@ -164,7 +181,7 @@ impl<'src> TypeChecker<'src> {
                     tuple
                         .iter()
                         .map(|pat| {
-                            let (ty, vars) = self.check_pattern(pat.clone())?;
+                            let (ty, vars) = self.check_pattern(pat.clone(), var_type)?;
                             // TODO: Check for intersection between new IDs being introduced
                             new_vars = new_vars.clone().union(vars);
                             Ok(ty)
@@ -179,7 +196,7 @@ impl<'src> TypeChecker<'src> {
                     record
                         .iter()
                         .map(|(_, id, pat)| {
-                            let (ty, vars) = self.check_pattern(pat.clone())?;
+                            let (ty, vars) = self.check_pattern(pat.clone(), var_type)?;
                             // TODO: Check for intersection between new IDs being introduced
                             new_vars = new_vars.clone().union(vars);
                             Ok((*id, ty))
@@ -228,6 +245,33 @@ impl<'src> TypeChecker<'src> {
                 }
                 Ok(())
             }
+
+            // Match polymorphic type variables that are introduced via let-polymorphism.
+            (Type::PolyVar(v1), Type::PolyVar(v2)) if v1 == v2 => Ok(()),
+            (Type::PolyVar(_v1), Type::PolyVar(_v2)) => todo!("Unify two polyvars"),
+            (Type::PolyVar(var), _) => {
+                let ty = match self.type_ctx.get(var) {
+                    None => {
+                        self.type_ctx.insert(*var, t2.clone());
+                        return Ok(());
+                    }
+                    Some(ty) => ty.clone(),
+                };
+                let ty = self.monomorphize(ty, &mut HashMap::new());
+                self.unify(ty, t2)
+            }
+            (_, Type::PolyVar(var)) => {
+                let ty = match self.type_ctx.get(var) {
+                    None => {
+                        self.type_ctx.insert(*var, t1.clone());
+                        return Ok(());
+                    }
+                    Some(ty) => ty.clone(),
+                };
+                let ty = self.monomorphize(ty, &mut HashMap::new());
+                self.unify(ty, t1)
+            }
+
             (Type::Var(v1), Type::Var(v2)) if v1 == v2 => Ok(()),
             (Type::Var(v1), Type::Var(v2)) => {
                 let ty2 = match self.type_ctx.get(v2) {
@@ -266,6 +310,7 @@ impl<'src> TypeChecker<'src> {
                 };
                 self.unify(ty, t1)
             }
+
             (ty1, ty2) => Err(format!(
                 "unification failure: types {} and {} can't be unified",
                 ty1, ty2
@@ -273,7 +318,7 @@ impl<'src> TypeChecker<'src> {
         }
     }
 
-    fn expand_type(&self, ty: Rc<Type<'src>>) -> Rc<Type<'src>> {
+    fn expand_type(&mut self, ty: Rc<Type<'src>>) -> Rc<Type<'src>> {
         match ty.as_ref() {
             Type::Bool => ty,
             Type::Int => ty,
@@ -293,10 +338,74 @@ impl<'src> TypeChecker<'src> {
                     .map(|(id, ty)| (*id, self.expand_type(ty.clone())))
                     .collect(),
             )),
-            Type::Var(v) => self
-                .type_ctx
-                .get(v)
-                .map_or(ty, |ty| self.expand_type(ty.clone())),
+            Type::Var(v) => {
+                let ty = match self.type_ctx.get(v) {
+                    None => return ty,
+                    Some(ty) => ty.clone(),
+                };
+                self.expand_type(ty)
+            },
+            Type::PolyVar(v) => {
+                let ty = match self.type_ctx.get(v) {
+                    None => return ty,
+                    Some(ty) => ty.clone(),
+                };
+                // let ty = self.monomorphize(ty, &mut HashMap::new());
+                self.expand_type(ty)
+            }
+        }
+    }
+
+    fn monomorphize(
+        &mut self,
+        ty: Rc<Type<'src>>,
+        map: &mut HashMap<usize, Rc<Type<'src>>>,
+    ) -> Rc<Type<'src>> {
+        match ty.as_ref() {
+            Type::Bool | Type::Int => ty,
+            Type::Arr(ty1, ty2) => {
+                let ty1 = self.monomorphize(ty1.clone(), map);
+                let ty2 = self.monomorphize(ty2.clone(), map);
+                Rc::new(Type::Arr(ty1, ty2))
+            }
+            Type::Tuple(tuple) => Rc::new(Type::Tuple(
+                tuple
+                    .iter()
+                    .map(|ty| self.monomorphize(ty.clone(), map))
+                    .collect(),
+            )),
+            Type::Record(record) => Rc::new(Type::Record(
+                record
+                    .iter()
+                    .map(|(id, ty)| (*id, self.monomorphize(ty.clone(), map)))
+                    .collect(),
+            )),
+            Type::Var(v) => match map.get(v) {
+                None => {
+                    let new_var = self.fresh();
+                    let new_var_idx = self.var_count - 1;
+                    map.insert(*v, new_var.clone());
+
+                    let ty = match self.type_ctx.get(v) {
+                        None => return new_var,
+                        Some(ty) => ty.clone(),
+                    };
+                    let ty = self.monomorphize(ty.clone(), map);
+                    self.type_ctx.insert(new_var_idx, ty);
+                    new_var
+                }
+                Some(ty) => ty.clone(),
+            },
+            Type::PolyVar(v) => match map.get(v) {
+                None => {
+                    let new_var = self.fresh();
+                    map.insert(*v, new_var.clone());
+                    // Add the new fresh variable to the map as well.
+                    map.insert(self.type_ctx.len() - 1, new_var.clone());
+                    new_var
+                }
+                Some(ty) => self.monomorphize(ty.clone(), map),
+            },
         }
     }
 }
@@ -328,6 +437,14 @@ fn simplify_type_vars<'src>(ty: Rc<Type<'src>>, map: &mut HashMap<usize, usize>)
                 Rc::new(Type::Var(new_var))
             }
             Some(v) => Rc::new(Type::Var(*v)),
+        },
+        Type::PolyVar(v) => match map.get(v) {
+            None => {
+                let new_var = map.len();
+                map.insert(*v, new_var);
+                Rc::new(Type::PolyVar(new_var))
+            }
+            Some(v) => Rc::new(Type::PolyVar(*v)),
         },
     }
 }
@@ -364,6 +481,16 @@ mod test {
         "#;
         let term = parse(src)?;
         assert_eq!(type_check(Rc::new(term))?.to_string(), "Int");
+
+        let src = r#"
+            let id2 = fn x => fn y =>
+                let id = fn x => x in
+                (id x, id y) in
+            let _ = id2 true false in
+            id2 10 true
+        "#;
+        let term = parse(src)?;
+        assert_eq!(type_check(Rc::new(term))?.to_string(), "(Int, Bool)");
 
         let src = r#"
             let things = {
