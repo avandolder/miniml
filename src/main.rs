@@ -93,7 +93,7 @@ fn main() {
 mod test {
     use super::*;
     use pattern::Pattern;
-    use types::{Type, type_check};
+    use types::{type_check, Type};
 
     #[test]
     fn parser_test() {

@@ -59,6 +59,8 @@ pub(crate) struct TypeChecker<'src> {
     type_ctx: HashMap<usize, Rc<Type<'src>>>,
 }
 
+type TypeScope<'src> = im_rc::HashMap<&'src str, Rc<Type<'src>>>;
+
 impl<'src> TypeChecker<'src> {
     fn fresh(&mut self) -> Rc<Type<'static>> {
         let fresh_var = self.var_count;
@@ -69,7 +71,7 @@ impl<'src> TypeChecker<'src> {
     fn check_term(
         &mut self,
         term: Rc<Term<'src>>,
-        vars: im_rc::HashMap<&'src str, Rc<Type<'src>>>,
+        vars: TypeScope<'src>,
     ) -> Result<Rc<Type<'src>>, String> {
         match term.as_ref() {
             Term::Apply(_, fun, arg) => {
@@ -82,7 +84,7 @@ impl<'src> TypeChecker<'src> {
                     Rc::new(Type::Arr(arg_type.clone(), return_type.clone())),
                 )?;
 
-                Ok(self.expand_type(return_type))
+                Ok(return_type)
             }
 
             Term::Id(loc, id) => vars
@@ -146,7 +148,7 @@ impl<'src> TypeChecker<'src> {
     fn check_pattern(
         &mut self,
         pat: Rc<Pattern<'src>>,
-    ) -> Result<(Rc<Type<'src>>, im_rc::HashMap<&'src str, Rc<Type<'src>>>), String> {
+    ) -> Result<(Rc<Type<'src>>, TypeScope<'src>), String> {
         match pat.as_ref() {
             Pattern::Any(_) => Ok((self.fresh(), im_rc::hashmap![])),
             Pattern::Id(_, id) => {
@@ -369,9 +371,11 @@ mod test {
                 apply: fn x => fn y => x y,
             } in
             let do_something =
-                fn { zero: (zero,), apply } =>
-                fn l =>
-                    apply l zero
+                fn things =>
+                    match things with
+                    | { zero: (zero,), apply } =>
+                        fn l =>
+                            apply l zero
             in
             do_something things
         "#;
