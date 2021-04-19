@@ -398,10 +398,16 @@ impl<'src> TypeChecker<'src> {
             },
             Type::PolyVar(v) => match map.get(v) {
                 None => {
-                    let new_var = self.fresh();
+                    let new_var = self.fresh_poly();
+                    let new_var_idx = self.var_count - 1;
                     map.insert(*v, new_var.clone());
-                    // Add the new fresh variable to the map as well.
-                    map.insert(self.type_ctx.len() - 1, new_var.clone());
+
+                    let ty = match self.type_ctx.get(v) {
+                        None => return new_var,
+                        Some(ty) => ty.clone(),
+                    };
+                    let ty = self.monomorphize(ty.clone(), map);
+                    self.type_ctx.insert(new_var_idx, ty);
                     new_var
                 }
                 Some(ty) => self.monomorphize(ty.clone(), map),
