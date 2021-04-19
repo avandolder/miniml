@@ -43,7 +43,7 @@ impl<'src> fmt::Display for Type<'src> {
             }
             Type::Var(n) => {
                 let primes = n / 26;
-                let c = ((n % 26) as u8 + 'a' as u8) as char;
+                let c = ((n % 26) as u8 + b'a') as char;
                 write!(f, "{}", c)?;
                 for _ in 0..primes {
                     write!(f, "'")?;
@@ -365,11 +365,11 @@ mod test {
 
         let src = r#"
             let things = {
-                zero: 0,
+                zero: (0,),
                 apply: fn x => fn y => x y,
             } in
             let do_something =
-                fn { zero, apply } =>
+                fn { zero: (zero,), apply } =>
                 fn l =>
                     apply l zero
             in

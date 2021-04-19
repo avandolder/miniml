@@ -35,7 +35,7 @@ Match = { "match" ~ Term ~ "with" ~ "|"? ~ Arm ~ ("|" ~ Arm)* }
 Arm = { Pattern ~ "=>" ~ Term }
 Pattern = { Any | True | False | Id | Int | TuplePattern | RecordPattern }
 RecordPattern = { "{" ~ RecordPatternField ~ ("," ~ RecordPatternField)* ~ ","? ~ "}" }
-RecordPatternField = { Id | Id ~ ":" ~ Pattern }
+RecordPatternField = { Id ~ ":" ~ Pattern | Id }
 TuplePattern = { Unit | "(" ~ (Pattern ~ ",")+ ~ Pattern? ~ ")" }
 
 Id = @{
