@@ -4,11 +4,9 @@ use std::rc::Rc;
 use boolinator::Boolinator;
 use pest::Span;
 
-use crate::types::Type;
 use crate::value::Value;
 
 type Scope<'src, T> = im_rc::HashMap<&'src str, Rc<T>>;
-type TScope<'src> = Scope<'src, Type<'src>>;
 type VScope<'src> = Scope<'src, Value<'src>>;
 
 #[derive(Clone, Debug)]
@@ -58,43 +56,6 @@ impl<'src> Pattern<'src> {
                             .and_then(|_| pat.match_value(scope, val.clone()))
                     },
                 )
-            }
-            _ => None,
-        }
-    }
-
-    pub(crate) fn match_type(
-        &self,
-        scope: TScope<'src>,
-        ty: Rc<Type<'src>>,
-    ) -> Option<TScope<'src>> {
-        match (self, ty.as_ref()) {
-            (Pattern::Any(_), _) => Some(scope),
-            (Pattern::Id(_, id), _) => Some(scope.update(id, ty)),
-            (Pattern::True(_), Type::Bool) => Some(scope),
-            (Pattern::False(_), Type::Bool) => Some(scope),
-            (Pattern::Int(_, _), Type::Int) => Some(scope),
-            (Pattern::Tuple(_, pats), Type::Tuple(types)) => {
-                if pats.len() != types.len() {
-                    return None;
-                }
-
-                pats.iter()
-                    .zip(types.iter())
-                    .try_fold(scope, |scope, (pat, ty)| pat.match_type(scope, ty.clone()))
-            }
-            (Pattern::Record(_, pats), Type::Record(tys)) => {
-                if pats.len() != tys.len() {
-                    return None;
-                }
-
-                pats.iter()
-                    .zip(tys.iter())
-                    .try_fold(scope, |scope, ((_, id1, pat), (id2, ty))| {
-                        (id1 == id2)
-                            .as_option()
-                            .and_then(|_| pat.match_type(scope, ty.clone()))
-                    })
             }
             _ => None,
         }

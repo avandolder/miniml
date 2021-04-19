@@ -69,9 +69,9 @@ fn apply<'a>(info: &Span<'a>, fun: Rc<Value<'a>>, arg: Rc<Value<'a>>) -> Rc<Valu
 }
 
 fn interpret(src: &str) -> Result<Rc<Value>, String> {
-    let term = parse(src)?;
-    term.type_check(hashmap![])?;
-    Ok(eval(hashmap![], &term))
+    let term = Rc::new(parse(src)?);
+    types::type_check(term.clone())?;
+    Ok(eval(hashmap![], term.as_ref()))
 }
 
 fn main() {
@@ -93,7 +93,7 @@ fn main() {
 mod test {
     use super::*;
     use pattern::Pattern;
-    use types::Type;
+    use types::{Type, type_check};
 
     #[test]
     fn parser_test() {
@@ -116,7 +116,7 @@ mod test {
             Rc::new(Term::Lambda(
                 dummy_info(),
                 Rc::new(Pattern::Id(dummy_info(), "b")),
-                Rc::new(Type::Bool),
+                Some(Rc::new(Type::Bool)),
                 Rc::new(Term::Match(
                     dummy_info(),
                     Rc::new(Term::Id(dummy_info(), "b")),
@@ -139,17 +139,17 @@ mod test {
     #[test]
     fn tuple_test() {
         let src = "((), ( ), (()), ((),), (true, false), (true, false,))";
-        let term = parse(src).unwrap();
+        let term = Rc::new(parse(src).unwrap());
         assert_eq!(
             term.to_string(),
             "((), (), (), ((),), (true, false), (true, false))"
         );
-        let ty = term.type_check(hashmap![]).unwrap();
+        let ty = type_check(term.clone()).unwrap();
         assert_eq!(
             ty.to_string(),
             "((), (), (), ((),), (Bool, Bool), (Bool, Bool))"
         );
-        let val = eval(hashmap![], &term);
+        let val = eval(hashmap![], term.as_ref());
         assert_eq!(
             val.to_string(),
             "((), (), (), ((),), (true, false), (true, false))"
@@ -178,9 +178,7 @@ mod test {
             in
             and (twice not true) (or false true)
         "#;
-        let term = parse(src).unwrap();
-        let _ty = term.type_check(hashmap![]).expect("type check failed");
-        let val = eval(hashmap![], &term);
+        let val = interpret(src).unwrap();
         assert_eq!(val.to_string(), "true");
     }
 }
